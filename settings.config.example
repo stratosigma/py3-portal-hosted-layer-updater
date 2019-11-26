@@ -1,0 +1,19 @@
+{
+    "portal":"https://www.arcgis.com",
+    "username":"",
+    "password":"",
+    "services": [
+        {
+            "name":"Sample_Hosted_Feature_Layer",
+            "project":"C:\\PathToArcGISProProject.aprx",
+            "map":"Map1",
+            "portalfolder":"",
+            "sharing": {
+                "public":true,
+                "org":true,
+                "groups":[]
+            },
+            "type":"FEATURE_ACCESS"
+        }
+    ]
+}
