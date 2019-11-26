@@ -13,7 +13,7 @@
                 "org":true,
                 "groups":[]
             },
-            "type":"FEATURE_ACCESS"
+            "type":"FEATURE"
         }
     ]
 }

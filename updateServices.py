@@ -30,6 +30,14 @@ arcpy.env.overwriteOutput = True
 
 Log("[INFO] {} services to update".format(str(len(services))))
 
+if not os.path.exists(staging):
+    try:
+        os.mkdir(staging)
+        Log("[INFO] Created a staging folder")
+    except:
+        Log("[FAIL] Failed to create a staging folder")
+        exit(1)
+
 try:
     gis = GIS(portal, username, password)
     Log("[PASS] Connected to Portal")
@@ -65,7 +73,8 @@ if gis:
 
             if mapview:
                 try:
-                    arcpy.mp.CreateWebLayerSDDraft(mapview, service_sddraft, service_name, 'MY_HOSTED_SERVICES', service_type, service_folder, 'True', 'True')
+                    draft = mapview.getWebLayerSharingDraft("HOSTING_SERVER", service_type, service_name)
+                    draft.exportToSDDraft(service_sddraft)
                     Log("[PASS] Created Draft Service Definition for {}".format(service_name))
                     try:
                         arcpy.StageService_server(service_sddraft, service_sd)
