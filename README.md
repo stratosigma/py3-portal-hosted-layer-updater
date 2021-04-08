@@ -40,15 +40,22 @@ The format of a service configuration is as follows:
 ```json
 {
     "name":"The name of the hosted feature layer",
+    "id":"When the type is REPLACEVECTORTILE this value is the ItemID of the target layer in ArcGIS Online",
     "project":"The path to the ArcGIS Pro project that contains the map for the hosted feature layer",
     "map":"The name of that map in the ArcGIS Pro project",
     "portalfolder":"The folder on Portal where the hosted layer is published. If it's in your root folder leave blank",
-    "type":"This is the type of the hosted layer, it can either be FEATURE, TILE, or MAP_IMAGE",
+    "type":"This is the type of the hosted layer, it can either be FEATURE, TILE, MAP_IMAGE, or REPLACEVECTORTILE",
     "sharing":{
         "public": "true or false depending on if the layer is public",
         "org": "true or false depending on if the layer is shared with the entire organization",
         "groups":["An array of groups that the layer is shared with"]
-    }
+    },
+    "sync":{
+        "frequency":"use one of the following: daily, weekly, monthly, yearly",
+        "last":"The date the layer was last processed by this script"
+    },
+    "tags":"(required for REPLACEVECTORTILE) A comma delimited list of tags for the item",
+    "summary":"(required for REPLACEVECTORTILE) A summary of the layer"
 }
 ```
 ## Authors
