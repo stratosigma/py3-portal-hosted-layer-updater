@@ -15,7 +15,7 @@ Ideally, these two files are used in combination and then added a scheduled task
 * The Portal you use this with must be ArcGIS Online **OR** Portal for ArcGIS version 10.5 or above. _The service overwrite capability in the ArcGIS REST API was not available prior to 10.5_ 
 
 ## Disclaimer
-Create copies or backups of any hosted feature services you attempt to run this script on. I take no resposibility if this fails to update or corrupts your hosted feature layer(s).
+Create copies or backups of any hosted feature services you attempt to run this script on. I take no responsibility if this fails to update or corrupts your hosted feature layer(s).
 
 ## Running
 * Once your configuration is setup, simply running `updateServices.py` will process all services in the configuration file. This file can either be run standalone or as part of a scheduled task.
