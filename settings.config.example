@@ -2,6 +2,7 @@
     "portal":"https://www.arcgis.com",
     "username":"",
     "password":"",
+    "retrylimit":5,
     "services": [
         {
             "name":"Sample_Hosted_Feature_Layer",

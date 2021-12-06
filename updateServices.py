@@ -24,13 +24,13 @@ def getSync(syncobj):
         lo = None
         freq["last"] = datetime.strptime(l, "%Y-%m-%d")
         if f == "daily":
-            freq["frequency"] = relativedelta.relativedelta(days=-1, hours=-1)
+            freq["frequency"] = relativedelta.relativedelta(days=-1)
         if f == "weekly":
-            freq["frequency"] = relativedelta.relativedelta(weeks=-1, hours=-12)
+            freq["frequency"] = relativedelta.relativedelta(weeks=-1)
         if f == "monthly":
-            freq["frequency"] = relativedelta.relativedelta(months=-1, hours=-12)
+            freq["frequency"] = relativedelta.relativedelta(months=-1)
         if f == "yearly":
-            freq["frequency"] = relativedelta.relativedelta(years=-1, hours=-12)
+            freq["frequency"] = relativedelta.relativedelta(years=-1)
     return freq
         
 
@@ -47,6 +47,7 @@ portal = config["portal"]
 username = config["username"]
 password = config["password"]
 services = config["services"]
+retrylimit = config["retrylimit"] if config["retrylimit"] > 0 else 1
 staging = os.path.join(sys.path[0], "staging")
 arcpy.env.overwriteOutput = True
 
@@ -114,30 +115,37 @@ if gis:
                                             if len(items) == 1:
                                                 sditem = items[0]
                                                 Log("[PASS] Found existing Service Definition for {} ({})".format(service_name, sditem.id))
-                                                try:
-                                                    Log("[INFO] Attempting to overwrite existing Feature Service Definition for {}".format(service_name))
-                                                    sditem.update(data=service_sd)
-                                                    fs = sditem.publish(overwrite=True)
-                                                    Log("[PASS] Successfully overwrote existing Feature Service Definition for {}".format(service_name))
+                                                attempts = 0
+                                                while True:
                                                     try:
-                                                        Log("[INFO] Updating sharing on {}".format(service_name))
-                                                        fs.share(org=service_sharing["org"], everyone=service_sharing["public"], groups=service_sharing["groups"])
-                                                        Log("[PASS] Updated sharing on {}".format(service_name))
-                                                        Log("[PASS] Successfully processed service {}".format(service_name))
-                                                        service["sync"]["last"] = datetime.now().strftime("%Y-%m-%d")
-                                                    except:
-                                                        Log("[FAIL] Failed to update sharing on {}".format(service_name))                                        
-                                                except:
-                                                    Log("[FAIL] Failed to overwrite existing Feature Service Defintion for {}".format(service_name))
+                                                        attempts += 1
+                                                        Log("[INFO] Attempting to overwrite existing Feature Service Definition for {}".format(service_name))
+                                                        sditem.update(data=service_sd)
+                                                        fs = sditem.publish(overwrite=True)
+                                                        Log("[PASS] Successfully overwrote existing Feature Service Definition for {}".format(service_name))
+                                                        try:
+                                                            Log("[INFO] Updating sharing on {}".format(service_name))
+                                                            fs.share(org=service_sharing["org"], everyone=service_sharing["public"], groups=service_sharing["groups"])
+                                                            Log("[PASS] Updated sharing on {}".format(service_name))
+                                                            Log("[PASS] Successfully processed service {}".format(service_name))
+                                                            service["sync"]["last"] = datetime.now().strftime("%Y-%m-%d")
+                                                        except:
+                                                            Log("[FAIL] Failed to update sharing on {}".format(service_name))                                        
+                                                    except Exception  as e:
+                                                        Log("[FAIL] Failed to overwrite existing Feature Service Defintion for {} [Attempts: {}]".format(service_name, str(attempts)))
+                                                        if attempts < retrylimit:
+                                                            continue
+                                                    break
                                             else:
                                                 Log("[FAIL] Found more than one matching Service Definition for {}".format(service_name))
                                         except:
                                             Log("[FAIL] Failed to search for existing Service Definition")
                                     except:
                                         Log("[FAIL] Failed to Stage Service {}".format(service_name))
-                                except:
+                                except Exception as e:
                                     Log("[FAIL] Failed to create Draft Service Definition for {}".format(service_name))
                                     Log(arcpy.GetMessages())
+                                    Log(e)
                             elif service_type == "REPLACEVECTORTILE":
                                 service_summary = service["summary"]
                                 service_tags = service["tags"]
