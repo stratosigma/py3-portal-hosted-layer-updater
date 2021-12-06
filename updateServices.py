@@ -52,6 +52,7 @@ staging = os.path.join(sys.path[0], "staging")
 arcpy.env.overwriteOutput = True
 
 Log("[INFO] {} services to update".format(str(len(services))))
+Log("[INFO] Retry limit set to {}".format(str(retrylimit)))
 Log("[INFO] Staging {}".format(staging))
 
 if not os.path.exists(staging):
