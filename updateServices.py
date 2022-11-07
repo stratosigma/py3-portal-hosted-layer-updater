@@ -132,10 +132,10 @@ if gis:
                                                             service["sync"]["last"] = datetime.now().strftime("%Y-%m-%d")
                                                         except:
                                                             Log("[FAIL] Failed to update sharing on {}".format(service_name))                                        
-                                                    except Exception  as e:
+                                                    except Exception as e:
                                                         Log("[FAIL] Failed to overwrite existing Feature Service Defintion for {} [Attempts: {}]".format(service_name, str(attempts)))
                                                         if attempts < retrylimit:
-                                                            continue
+                                                            Log(e)
                                                     break
                                             else:
                                                 Log("[FAIL] Found more than one matching Service Definition for {}".format(service_name))
