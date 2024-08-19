@@ -31,6 +31,7 @@ The general format of this file is as follows:
     "portal":"The URL of the portal",
     "username":"The username of the account that owns the items",
     "password":"password",
+    "encrypted":"Set to false if the password is cleartext, next time script runs the password will be encrypted and this set to true",
     "retrylimit":1, 
     "services": ["An Array of Service Configurations"]
 }

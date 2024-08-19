@@ -2,6 +2,7 @@ import arcpy
 import os
 import sys
 import json
+from time import sleep
 from arcgis.gis import GIS
 from datetime import datetime
 from dateutil import relativedelta
@@ -12,6 +13,24 @@ class Log:
         with open(logfile, 'a') as f:
             datestring = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             f.write("[{}] {}\n".format(datestring, msg))
+
+def encode(key, string):
+    encoded_chars = []
+    for i in range(len(string)):
+        key_c = key[i % len(key)]
+        encoded_c = chr(ord(string[i]) + ord(key_c) % 256)
+        encoded_chars.append(encoded_c)
+    encoded_string = "".join(encoded_chars)
+    return encoded_string
+
+def decode(key, string):
+    encoded_chars = []
+    for i in range(len(string)):
+        key_c = key[i % len(key)]
+        encoded_c = chr(ord(string[i]) - ord(key_c) % 256)
+        encoded_chars.append(encoded_c)
+    encoded_string = "".join(encoded_chars)
+    return encoded_string
 
 def getSync(syncobj):
     freq = {
@@ -47,6 +66,14 @@ portal = config["portal"]
 username = config["username"]
 password = config["password"]
 services = config["services"]
+encrypted = config["encrypted"] if "encrypted" in config else None
+
+if not encrypted:    
+    password = encode("shenannigans", password)
+    config["password"] = password
+    config["encrypted"] = True
+
+password = decode("shenannigans", password)
 retrylimit = config["retrylimit"] if config["retrylimit"] > 0 else 1
 staging = os.path.join(sys.path[0], "staging")
 arcpy.env.overwriteOutput = True
@@ -78,20 +105,19 @@ if gis:
         service_folder = service["portalfolder"]
         service_process = service["process"]
         service_sharing = service["sharing"]
-        service_map = service["map"]
         service_update = getSync(service["sync"])
         service_sddraft = os.path.join(staging, "{}.sddraft".format(service_name))
         service_sd = os.path.join(staging,"{}.sd".format(service_name))
         if service_update["last"] <= (datetime.now() + service_update["frequency"]):
             if service_process:
-                try:
-                    Log("[PASS] Loaded project file for {}".format(service_name))
-                    project = arcpy.mp.ArcGISProject(service["project"])
-                except:
-                    Log("[FAIL] Failed to load project file for {}".format(service_name))
-                    project = None
-
-                if service_type in ["FEATURE", "REPLACEVECTORTILE"]:
+                if service_type in ["FEATURE", "REPLACEVECTORTILE", "REPLACETILE"]:
+                    service_map = service["map"]
+                    try:
+                        Log("[PASS] Loaded project file for {}".format(service_name))
+                        project = arcpy.mp.ArcGISProject(service["project"])
+                    except:
+                        Log("[FAIL] Failed to load project file for {}".format(service_name))
+                        project = None
                     if project:
                         try:
                             mapview = project.listMaps(service_map)[0]
@@ -147,43 +173,93 @@ if gis:
                                     Log("[FAIL] Failed to create Draft Service Definition for {}".format(service_name))
                                     Log(arcpy.GetMessages())
                                     Log(e)
-                            elif service_type == "REPLACEVECTORTILE":
+                            elif service_type in ["REPLACEVECTORTILE", "REPLACETILE"]:
                                 service_summary = service["summary"]
                                 service_tags = service["tags"]
                                 service_id = service["id"]
+                                service_sharing = service["sharing"]
                                 service_public = "EVERYBODY" if service_sharing["public"] == True else "MYGROUPS"
 
-                                vtpk_name = "{}_{}".format(service_name, datetime.strftime(datetime.now(),'%Y%m%d_%H%M%S'))
-                                vtpk_path = os.path.join(staging, "{}.vtpk".format(vtpk_name))
+                                pk_name = "{}_{}".format(service_name, datetime.strftime(datetime.now(),'%Y%m%d_%H%M%S'))
+                                pk_path = os.path.join(staging, "{}.{}".format(pk_name, "vtpk" if service_type == "REPLACEVECTORTILE" else "tpkx"))
+                                mapview.clearSelection()
                                 try:
-                                    arcpy.management.CreateVectorTilePackage(mapview, vtpk_path, "ONLINE", "", "INDEXED", 577790.554288, 282.124294)
-                                    Log("[PASS] Generated Vector Tile Package {} for {}".format(vtpk_path, service_name))
-                                    Log("[INFO] Attempting to publish Vector Tile Package")
+                                    if service_type == "REPLACEVECTORTILE":
+                                        arcpy.management.CreateVectorTilePackage(mapview, pk_path, "ONLINE", "", "INDEXED", 577790.554288, 282.124294)
+                                        Log("[PASS] Generated Vector Tile Package {} for {}".format(pk_path, service_name))
+                                        Log("[INFO] Attempting to publish Vector Tile Package")
+                                    elif service_type == "REPLACETILE":
+                                        aoi_layer = None
+                                        aoi_selectors = None
+                                        aoi_selector_layers = []
+                                        if "parameters" in service:
+                                            aoi_layer = service["parameters"]["aoi"] if "aoi" in service["parameters"] else None
+                                            aoi_selectors = service["parameters"]["aoi_selectors"] if "aoi_selectors" in service["parameters"] else None
+                                            aoil = mapview.listLayers(aoi_layer)
+                                            if len(aoil) == 1:
+                                                aoi_layer = aoil[0]
+                                            else:
+                                                Log("[INFO] Failed to find AOI Layer: {}".format(aoi_layer))
+                                                aoi_layer = None
+
+                                            for aoi_selector in aoi_selectors:                                                
+                                                aois = mapview.listLayers(aoi_selector)
+                                                if len(aois) == 1:
+                                                    aoi_selector_layers.append(aois[0])
+                                                else:
+                                                    Log("[INFO] Failed to find AOI Selector: {}".format(aoi_selector))
+
+                                        if aoi_selector_layers:
+                                            for i, aoi_selector_layer in enumerate(aoi_selector_layers):
+                                                try:
+                                                    arcpy.management.SelectLayerByLocation(aoi_layer, "INTERSECT", aoi_selector_layer,selection_type=("NEW_SELECTION" if i == 0 else "ADD_TO_SELECTION"))
+                                                    Log("[INFO] Selecting AOI that intersects {}".format(aoi_selector_layers[i].name))
+                                                except:
+                                                    Log("[FAIL] Failed to select AOI that intersects {}".format(aoi_selector_layers[i]))
+                                                    Log(arcpy.GetMessages())
+
+                                        Log("[INFO] Beginning Tile Package Generation for {} in {}".format(service_map, project.filePath))
+                                        try:
+                                            arcpy.management.CreateMapTilePackage(mapview, "ONLINE", pk_path, "PNG8", 21, None, '', '', aoi_layer.name, 75, 'tpkx', 19, aoi_layer)
+                                            Log("[PASS] Tile package generated successfully")
+                                        except:
+                                            Log("[FAIL] Failed to generate tile package for {} in {}".format(service_map, project.filePath))
+                                            Log(arcpy.GetMessages())                                        
+                                            
                                     try:
-                                        publish = arcpy.management.SharePackage(vtpk_path, username, password, service_summary, service_tags, public=service_public, groups=service_sharing["groups"], publish_web_layer="TRUE", portal_folder=service_folder)
-                                        Log("[PASS] Successfully published Vector Tile Package. ItemID {}".format(publish[2]))
-                                        Log("[INFO] Attempting to replace Vector Tiles for {} with {}".format(service_name, vtpk_name))
+                                        publish = arcpy.management.SharePackage(pk_path, username, password, service_summary, service_tags, public=service_public, groups=service_sharing["groups"], publish_web_layer="TRUE", portal_folder=service_folder)
+                                        Log("[PASS] Successfully published {} Package. ItemID {}".format("Vector Tile" if service_type == "REPLACEVECTORTILE" else "Tile", publish[2]))
+                                        Log("[INFO] Attempting to replace Tiles for {} with {}".format(service_name, pk_name))
                                         publish_result = json.loads(publish[1])
+                                        sleep(10)
                                         try:
                                             replaced = gis.content.replace_service(service_id, publish_result["publishResult"]["serviceItemId"], replace_metadata=False)
-                                            Log("[PASS] Successfully replaced Vector Tile Service {} with {}".format(service_name, vtpk_name))
+                                            Log("[PASS] Successfully replaced {} Service {} with {}".format("Vector Tile" if service_type == "REPLACEVECTORTILE" else "Tile", service_name, pk_name))
                                             service["sync"]["last"] = datetime.now().strftime("%Y-%m-%d")
                                             try:
-                                                arcpy.management.Delete(vtpk_path)
+                                                arcpy.management.Delete(pk_path)
                                                 Log("[PASS] Deleted staging tile package")
                                             except:
-                                                Log("[FAIL] Failed to delete staging tile package, {}".format(vtpk_path))
+                                                Log("[FAIL] Failed to delete staging tile package, {}".format(pk_path))
                                                 Log(arcpy.GetMessages())
                                         except Exception as e:
-                                            Log("[FAIL] Failed to replace Vector Tile Service {} with {}".format(service_name, vtpk_name))
+                                            Log("[FAIL] Failed to replace Tile Service {} with {}".format(service_name, pk_name))
                                             Log(arcpy.GetMessages())
                                             Log(e)
                                     except:
-                                        Log("[FAIL] Failed to publish Vector Tile Package")
+                                        Log("[FAIL] Failed to publish Tile Package")
                                         Log(arcpy.GetMessages())
                                 except:
-                                    Log("[FAIL] Failed to generate Vector Tile Package for {}".format(service_name))
+                                    Log("[FAIL] Failed to generate Tile Package for {}".format(service_name))
                                     Log(arcpy.GetMessages())
+                            else:
+                                Log("[FAIL] Service Type, {}, not implemented".format(service_type))
+                        else:
+                            Log("[FAIL] Failed to retrieve map for {}".format(service_name))
+                    else:
+                        Log("[FAIL] Failed to load project file for {}".format(service_name))
+                else:
+                    Log("[FAIL] Service Type, {}, not implemented".format(service_type))                
             else:
                 Log("[INFO] Skipped {} - not flagged for processing".format(service_name))
         else:

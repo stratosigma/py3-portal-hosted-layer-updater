@@ -2,3 +2,4 @@ services.log
 settings.config
 .vscode/launch.json
 staging/
+.vscode/settings.json
