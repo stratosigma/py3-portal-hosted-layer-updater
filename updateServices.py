@@ -66,6 +66,7 @@ portal = config["portal"]
 username = config["username"]
 password = config["password"]
 services = config["services"]
+tasks = config["tasks"] if "tasks" in config else None
 encrypted = config["encrypted"] if "encrypted" in config else None
 
 if not encrypted:    
@@ -264,6 +265,68 @@ if gis:
                 Log("[INFO] Skipped {} - not flagged for processing".format(service_name))
         else:
             Log("[SKIP] Skipped {} because not time to update yet".format(service_name))
+    for task in tasks:
+        if task['type'] in ['CLEAN']:
+            search_string = task['find'] if 'find' in task else None
+            older_than = task['olderthan'] if 'olderthan' in task else 7
+            owner = task['owner'] if 'owner' in task else None
+            process = task['process'] if 'process' in task else False
+            update = getSync(task['sync']) if 'sync' in task else None
+            summary = task['summary']
+            content_type = task['content_type'] if 'content_type' in task else None
+            folder = task['folder'] if 'folder' in task else None
+
+            if search_string and update:
+                if update["last"] <= (datetime.now() + update["frequency"]):
+                    try:
+                        if owner and content_type:
+                            results = gis.content.search(query="title:{} type:{} owner:{}".format(search_string, content_type, owner), max_items=-1) 
+                        elif owner and not content_type:
+                            results = gis.content.search(query="title:{} owner:{}".format(search_string, owner), max_items=-1) 
+                        elif content_type and not owner:
+                            results = gis.content.search(query="title:{} type:{}".format(search_string, content_type), max_items=-1)
+                        else:
+                            results = gis.content.search(query="title:{}".format(search_string), max_items=-1)                         
+
+                        Log("[INFO] Found {} items that match the query {}".format(str(len(results)),search_string))
+                        if len(results) > 0:
+                            checkpoint = datetime.now() - relativedelta.relativedelta(days=older_than)
+                            for result in results:
+                                if result.title.startswith(search_string):
+                                    modified_date = datetime.fromtimestamp(result.modified/1000)
+                                    created_date = datetime.fromtimestamp(result.created/1000)
+                                    if modified_date < checkpoint and created_date < checkpoint:
+                                        Log("[INFO] {} is older than {} days, attempting to delete".format(result.title, str(older_than)))
+                                        if not result.can_delete:
+                                            Log("[INFO] {} is delete protected".format(result.title))
+                                        else:
+                                            Log("[INFO] DELETE {}".format(result.title))
+                                            deleted = result.delete(dry_run=True)
+                                            if deleted['can_delete']:
+                                                try:
+                                                    result.delete()
+                                                    Log("[PASS] DELETED {} successfully".format(result.title))
+                                                except Exception as e:
+                                                    Log("[FAIL] Failed to Delete {}".format(result.title))
+                                                    Log(e)
+                                    else:
+                                        Log("[INFO] {} is not older than {}, keeping".format(result.title, str(older_than)))
+                                else:
+                                    Log("[INFO] {} does not begin with {}, skipping".format(result.title, search_string))
+                            task["sync"]["last"] = datetime.now().strftime("%Y-%m-%d")
+                        else:
+                            Log("[INFO] No results found for query {}".format(search_string))
+                    except:
+                        Log("[FAIL] Failed to search for {}".format(search_string))
+                else:
+                    Log("[INFO] Skipping, {}, because not time to run yet".format(summary))
+                
+            else:
+                if not search_string:
+                    Log("[FAIL] No search string specified in find for {}".format(summary))
+                if not update:
+                    Log("[FAIL] No update frequency set for {}".format(summary))
+
     Log("[INFO] Completed processing services")
 Log("[INFO] Writing File")
 with open(configFile, 'w') as f:

@@ -22,7 +22,7 @@ Create copies or backups of any hosted feature services you attempt to run this 
 * The script will create logged output in a file called `services.log` in the same folder as the script.
 
 ## Configuration
-The script looks for a file called `settings.config` that contains the information needed for authenticating to the portal and information on services to process. The `settings.config.example` shows the general format of this file.
+The script looks for a file called `settings.config` that contains the information needed for authenticating to the portal and information on services to process. The `settings.config.example` shows the general format of this file.This file contains instructions for updating services as well as other tasks such as cleaning up old services/files
 
 The general format of this file is as follows:
 
@@ -33,7 +33,8 @@ The general format of this file is as follows:
     "password":"password",
     "encrypted":"Set to false if the password is cleartext, next time script runs the password will be encrypted and this set to true",
     "retrylimit":1, 
-    "services": ["An Array of Service Configurations"]
+    "services": ["An Array of Service Configurations"],
+    "tasks": ["An array of tasks"]
 }
 ```
 
@@ -60,6 +61,24 @@ The format of a service configuration is as follows:
     "summary":"(required for REPLACEVECTORTILE) A summary of the layer"
 }
 ```
+There is currently one task available, CLEAN, which will delete services/files/layers from ArcGIS Online that are older than a specified time. The format is as follows:
+
+```json
+{
+    "summary":"A description of the task",
+    "type":"This is the type of task, currently only CLEAN is available",
+    "find":"The string to use for finding matching items",
+    "content_type":"You can specify a content type here to narrow the results, examples include Map Service, Vector Tile, Compact Tile Package, etc",
+    "owner":"You can specify an owner to limit the search to items owned by that person",
+    "process":"Set this to false to skip this task",
+    "olderthan":"An integer specifying the number of days an item age has to be before it is processed",
+    "sync":{
+        "frequency":"use one of the following: daily, weekly, monthly, yearly",
+        "last":"The date this task was last processed by the script"
+    }
+}
+```
+
 ## Authors
 * Nick Nolte - Initial Development - City of Grand Island, Nebraska
 

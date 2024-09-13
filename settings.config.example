@@ -40,5 +40,20 @@
             "tags":"tag1, tag2",
             "type":"REPLACEVECTORTILE"
         }
+    ],
+    "tasks":[
+        {
+            "content_type":"Vector Tile",
+            "find":"VT_Parcel_",
+            "olderthan":7,
+            "owner":"userName",
+            "process":true,
+            "summary":"Remove old Parcel Vector Tile Caches",
+            "sync":{
+                "frequency":"daily",
+                "last":"2021-04-05"
+            },
+            "type":"CLEAN"
+        }
     ]
 }
